@@ -1,0 +1,540 @@
+
+USE AVANCE_SO_MODERNO_BOLIVIA
+
+ALTER TABLE AVANCE_MODERNO_DIARIO DROP COLUMN Descripcion_Material
+
+ALTER TABLE BASE_FUENTE DROP COLUMN REAL_FUENTE
+
+
+GO
+
+--1.- Insertamos nuestras bases SO descargados del ISTV
+/**********************************************************************************/
+-- Para ello descargamos nuestras bases del Instore View, abrimos el archivo, 
+--cambiamos de nombre y convertimos a csv separados en ;
+/**********************************************************************************/
+
+TRUNCATE TABLE BASE_ISTV_ACTUAL;
+BULK INSERT DBO.BASE_ISTV_ACTUAL
+FROM 'C:\Reportes\Lucky\Virtualdex\Avance\ACTUAL.CSV'
+WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+--UPDATE BASE_ISTV_ACTUAL
+--SET CODIGO_MATERIAL='7450038'
+--WHERE CODIGO_MATERIAL='8301806'
+--AND CATEGORIA='Schick'
+--AND FAMILIA='Rasuradoras - Desechables'
+
+--********************************************************************
+--BASE PARA SELL IN
+--********************************************************************
+
+TRUNCATE TABLE BASE_FUENTE;
+BULK INSERT BASE_FUENTE
+FROM 'C:\Reportes\Lucky\Virtualdex\Avance\Lista_Fuente2.csv'
+WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+ALTER TABLE BASE_FUENTE ADD REAL_FUENTE FLOAT
+GO
+
+
+/**********************************************************************************************
+**********************************************************************************************
+**********************************************************************************************
+**********************************************************************************************
+**********************************************************************************************
+
+TRUNCATE TABLE Base_ISTV_ANTERIOR;
+BULK INSERT Base_ISTV_ANTERIOR
+FROM 'C:\Users\ValeryGabrielaCardoz\OneDrive - Lucky S.A.C\Documentos\Avance de Ventas Bolivia\ANTERIOR.CSV'
+WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+UPDATE Base_ISTV_ANTERIOR
+SET CODIGO_MATERIAL='7450038'
+WHERE CODIGO_MATERIAL='8301806'
+AND CATEGORIA='Schick'
+AND FAMILIA='Rasuradoras - Desechables'
+
+
+--********************************************************************
+-- --Los materiales descargados de ISTV, SI y el maestro de plataformas
+--*********************************************************************
+
+--SOLO SELL OUT
+TRUNCATE TABLE MAESTRO_ISTV;
+BULK INSERT MAESTRO_ISTV
+FROM 'C:\Users\ValeryGabrielaCardoz\OneDrive - Lucky S.A.C\Documentos\Avance de Ventas Bolivia\Descargas\sep\MATERIALES_SO.CSV'
+WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+IF OBJECT_ID('tempdb..#PRE_MAT') IS NOT NULL DROP TABLE #PRE_MAT;
+SELECT 
+       DISTINCT [Código de Producto]
+      ,[Material]
+      ,[Categoría]
+      ,[Marca]
+      ,[Familia]
+      ,[Variedad]
+      ,[Subnegocio]
+      ,[Dueño Marca]
+INTO #PRE_MAT
+  FROM [AVANCE_SO_MODERNO_BOLIVIA].[dbo].[MAESTRO_ISTV]
+
+  UPDATE #PRE_MAT
+SET [Código de Producto]='7450038'
+WHERE [Código de Producto]='8301806'
+AND [Categoría]='Schick'
+AND [Familia]='Rasuradoras - Desechables'
+
+TRUNCATE TABLE BASE_MATERIAL_ISTV
+INSERT INTO BASE_MATERIAL_ISTV
+SELECT
+[Código de Producto]
+      ,[Material]
+      ,[Categoría]
+      ,[Marca]
+      ,[Familia]
+      ,[Variedad]
+      ,[Subnegocio]
+      ,[Dueño Marca]
+FROM
+(  SELECT A.*,ROW_NUMBER() OVER (PARTITION BY A.[Código de Producto] ORDER BY A.[Código de Producto] DESC) RN
+FROM(
+SELECT 
+      DISTINCT [Código de Producto]
+      ,[Material]
+      ,[Categoría]
+      ,[Marca]
+      ,[Familia]
+      ,[Variedad]
+      ,[Subnegocio]
+      ,[Dueño Marca]
+  FROM [AVANCE_SO_MODERNO_BOLIVIA].[dbo].[MAESTRO_ISTV]
+) A
+) B
+WHERE B.RN = 1
+
+
+--TRUNCATE TABLE BASE_MATERIAL_ISTV
+--BULK INSERT BASE_MATERIAL_ISTV
+--FROM 'C:\Users\ValeryGabrielaCardoz\OneDrive - Lucky S.A.C\Documentos\Avance de Ventas Bolivia\Descargas\SEP\MAESTRO_MAT_SO.CSV'
+--WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+DELETE FROM BASE_MATERIAL_ISTV WHERE COD_MATERIAL IS NULL
+DELETE FROM BASE_MATERIAL_ISTV WHERE COD_MATERIAL='No Definido'
+DELETE FROM BASE_MATERIAL_ISTV WHERE MATERIAL='No Definido'
+
+
+--SOLO SELL IN
+
+TRUNCATE TABLE BASE_PLATAFORMA
+BULK INSERT BASE_PLATAFORMA
+FROM 'C:\Users\ValeryGabrielaCardoz\OneDrive - Lucky S.A.C\Documentos\Avance de Ventas Bolivia\M_CATEGORIA.CSV'
+WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+DELETE FROM BASE_PLATAFORMA WHERE COD_CATEGORIA IS NULL
+
+
+TRUNCATE TABLE MAESTRO_SI
+BULK INSERT MAESTRO_SI
+FROM 'C:\Users\ValeryGabrielaCardoz\OneDrive - Lucky S.A.C\Documentos\Avance de Ventas Bolivia\Descargas\sep\MAESTRO_SI.CSV'
+WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+
+TRUNCATE TABLE BASE_MATERIAL_SI
+--BULK INSERT BASE_MATERIAL_SI
+--FROM 'C:\Users\ValeryGabrielaCardoz\OneDrive - Lucky S.A.C\Documentos\Avance de Ventas Bolivia\Descargas\SEP\M_MATERIALES_CML.CSV'
+--WITH (FIELDTERMINATOR =';', FIRSTROW=2, CODEPAGE='ACP'); 
+
+
+INSERT INTO BASE_MATERIAL_SI
+select
+[Cod. Actual]
+      ,[Descripción Material]
+      ,[Cod Categoria]
+      ,[Desc Categoria]
+      ,[Cod. Familia]
+      ,[Desc. Familia]
+      ,[Cod. Marca]
+      ,[Desc. Marca]
+      ,[Cod. Variedad]
+      ,[Desc. Variedad]
+from (
+select a.* from (
+select distinct [Cod. Actual]
+      ,[Descripción Material]
+      ,[Cod Categoria]
+      ,[Desc Categoria]
+      ,[Cod. Familia]
+      ,[Desc. Familia]
+      ,[Cod. Marca]
+      ,[Desc. Marca]
+      ,[Cod. Variedad]
+      ,[Desc. Variedad]
+	  ,ROW_NUMBER() OVER (PARTITION BY [Cod. Actual] ORDER BY [Descripción Material] DESC) RN
+  FROM [AVANCE_SO_MODERNO_BOLIVIA].[dbo].[MAESTRO_SI] 
+  ) a
+  ) b where b.rn=1
+
+GO
+
+
+
+IF OBJECT_ID('tempdb..#FAM_SN_DM') IS NOT NULL DROP TABLE #FAM_SN_DM;
+select
+distinct FAMILIA,SUBNEGOCIO,DUENO_MARCA
+INTO #FAM_SN_DM
+from BASE_MATERIAL_ISTV
+where familia not in 
+(
+SELECT DISTINCT B.FAMILIA FROM (
+SELECT A.*,ROW_NUMBER() OVER (PARTITION BY A.FAMILIA ORDER BY A.SUBNEGOCIO DESC) RN
+FROM(
+select distinct FAMILIA,SUBNEGOCIO,DUENO_MARCA
+from BASE_MATERIAL_ISTV
+) A) B
+WHERE B.RN =2
+)
+
+GO
+
+DECLARE @FAMILIA  INT
+SELECT @FAMILIA= COUNT(A.FAMILIA)
+				FROM (SELECT FAMILIA FROM #FAM_SN_DM WHERE FAMILIA = 'Jabon de Lavar Oso') A
+
+IF @FAMILIA=0
+INSERT INTO #FAM_SN_DM
+VALUES
+('Jabon de Lavar Oso','Propios','PE11 Alicorp S.A.A')
+
+GO
+
+IF OBJECT_ID('tempdb..#BASE_MATERIAL_1') IS NOT NULL DROP TABLE #BASE_MATERIAL_1;
+SELECT a.*,b.SUBNEGOCIO,b.DUENO_MARCA,c.PLATAFORMA
+INTO #BASE_MATERIAL_1
+FROM BASE_MATERIAL_SI a
+left join base_material_istv b on b.cod_material=a.cod_material
+left join BASE_PLATAFORMA c on c.cod_categoria=a.cod_categoria
+--where b.cod_material is not null 
+
+
+IF OBJECT_ID('BASE_MATERIAL') IS NOT NULL DROP TABLE BASE_MATERIAL
+SELECT
+A.COD_MATERIAL,
+A.MATERIAL,
+A.COD_CATEGORIA,
+A.CATEGORIA,
+A.COD_FAMILIA,
+A.FAMILIA,
+A.COD_MARCA,
+A.MARCA,
+A.COD_VARIEDAD,
+A.VARIEDAD,
+ISNULL(A.SUBNEGOCIO,M.SUBNEGOCIO) SUBNEGOCIO,
+ISNULL(A.DUENO_MARCA,M.DUENO_MARCA) DUENO_MARCA,
+A.PLATAFORMA
+INTO BASE_MATERIAL
+FROM #BASE_MATERIAL_1 A
+LEFT JOIN #FAM_SN_DM M ON A.FAMILIA=M.FAMILIA
+
+--IF OBJECT_ID('BASE_MATERIAL') IS NOT NULL DROP TABLE BASE_MATERIAL
+--SELECT a.*,b.SUBNEGOCIO,b.DUENO_MARCA,c.PLATAFORMA
+--INTO BASE_MATERIAL
+--FROM BASE_MATERIAL_SI a
+--left join base_material_istv b on b.cod_material=a.cod_material
+--left join BASE_PLATAFORMA c on c.cod_categoria=a.cod_categoria
+----where b.cod_material is not null 
+
+--UPDATES
+
+update base_material
+set dueno_marca='PE21 Intradevco Industrial S.A',
+SUBNEGOCIO='Propios'
+where PLATAFORMA like '%intradevco%'
+and DUENO_MARCA is null
+
+DELETE FROM BASE_MATERIAL
+WHERE plataforma is null
+
+UPDATE BASE_MATERIAL
+SET VARIEDAD='Otros'
+WHERE COD_VARIEDAD='OTR'
+
+UPDATE BASE_MATERIAL
+SET SUBNEGOCIO='Propios',
+	DUENO_MARCA='PE11 Alicorp S.A.A'
+WHERE MARCA='PLUSBELLE'
+AND SUBNEGOCIO IS NULL
+
+DELETE FROM BASE_MATERIAL
+WHERE SUBNEGOCIO is null AND DUENO_MARCA IS NULL
+
+
+**********************************************************************************************
+**********************************************************************************************
+**********************************************************************************************
+**********************************************************************************************
+**********************************************************************************************/
+
+
+
+--3.- Juntamos nuestra base actual y las bases anterior (mes anterior y mismo mes del año pasado)
+--SELECT SUM(TONELADAS) FROM #TMP01
+IF OBJECT_ID('tempdb..#TMP01') IS NOT NULL DROP TABLE #TMP01;
+SELECT * 
+INTO #TMP01
+FROM BASE_ISTV_ACTUAL
+UNION
+SELECT * FROM BASE_ISTV_ANTERIOR;
+
+/************************************************************************/
+
+--SELECT * FROM #TMP02
+IF OBJECT_ID('tempdb..#TMP02') IS NOT NULL DROP TABLE #TMP02;
+SELECT DISTINCT C.* 
+INTO #TMP02
+FROM 
+(
+	SELECT  *, DAY(FECHA) DIA,
+	CAST(CONCAT(right('00'+ISNULL(CAST(MONTH(FECHA) AS VARCHAR),''),2),'-',YEAR(FECHA)) AS VARCHAR) PERIODO
+	FROM (
+		SELECT A.FECHA,D.NOMBRE CADENA,A.TONELADAS,A.CODIGO_MATERIAL,
+		D.CODIGO_CADENA,D.GRUPO_PRECIOS,
+		CASE WHEN DAY(FECHA) BETWEEN 1 AND 7 THEN '1 al 7' ELSE
+		CASE WHEN DAY(FECHA) BETWEEN 8 AND 14 THEN '8 al 14' ELSE
+		CASE WHEN DAY(FECHA) BETWEEN 15 AND 21 THEN '15 al 21' ELSE '22 al 31' END END END SEMANA,
+		B.MATERIAL  MATERIAL_AFO,
+		--B.COD_PLATAFORMA	 COD_PLATAFORMA_AFO,
+		B.PLATAFORMA	 PLATAFORMA_AFO,
+		B.COD_CATEGORIA	 COD_CATEGORIA_AFO,
+		ISNULL(B.CATEGORIA,A.CATEGORIA)	 CATEGORIA_AFO,
+		B.COD_MARCA	 COD_MARCA_AFO,
+		B.MARCA	 MARCA_AFO,
+		B.COD_FAMILIA	 COD_FAMILIA_AFO,
+		ISNULL(B.FAMILIA,A.FAMILIA)	 FAMILIA_AFO,
+		B.SUBNEGOCIO	 SUBNEGOCIO_AFO,
+		B.DUENO_MARCA	 DUENO_MARCA_AFO
+		FROM #TMP01 A
+		LEFT JOIN BASE_MATERIAL B ON RTRIM(LTRIM(A.CODIGO_MATERIAL)) = RTRIM(LTRIM(B.COD_MATERIAL))
+		LEFT JOIN BASE_GRUPO_PRECIOS_MODERNO D ON A.CADENA = D.CADENA	
+	)B
+)C;
+
+
+
+--Validamos cantidad que no hay match con los codigos de materiales
+--SELECT COUNT(*) FROM #TMP02 WHERE PLATAFORMA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE COD_CATEGORIA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE CATEGORIA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE COD_MARCA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE MARCA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE COD_FAMILIA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE FAMILIA_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE SUBNEGOCIO_AFO IS NULL;
+--SELECT COUNT(*) FROM #TMP02 WHERE DUENO_MARCA_AFO IS NULL;
+
+/***************************************************************************************************************/
+-- En caso no haya cruces, se puede revisar del excel Maestro de Productos de ISTV y actualizar de forma manual
+/***************************************************************************************************************/
+
+--Validamos si se repite alguna familia
+--SELECT COUNT(1),COD_FAMILIA FROM (
+--SELECT DISTINCT COD_FAMILIA,FAMILIA FROM BASE_MATERIAL 
+--)A GROUP BY COD_FAMILIA HAVING COUNT(1)>1
+
+-- 10.- Insertamos en nuestra base final de actualizar el reporte
+IF OBJECT_ID('AVANCE_MODERNO_DIARIO') IS NOT NULL DROP TABLE AVANCE_MODERNO_DIARIO;
+SELECT * INTO AVANCE_MODERNO_DIARIO
+FROM #TMP02
+
+
+/****************************************************************************************/
+-- Pasamos a calcular nuestra tabla de SO
+/****************************************************************************************/
+--11.- Creamos nuestra tabla de SO de nuestro Negocio y hasta la fecha y Pivoteamos
+/*******************************************************/
+--NOTA: Revisamos los periodos del reporte:
+/*******************************************************/
+DECLARE @DIAS_UTILES INT
+
+SELECT TOP(1) @DIAS_UTILES = DAY(B.ULTIMO)
+FROM AVANCE_MODERNO_DIARIO A
+LEFT JOIN M_PERIODOS B ON A.PERIODO=B.PERIODO
+GROUP BY B.ULTIMO
+
+DECLARE @DIA_ISTV INT
+SELECT @DIA_ISTV = day(max(fecha)) from AVANCE_MODERNO_DIARIO
+
+DECLARE @DIA_ISTV2 VARCHAR(2)  
+SELECT @DIA_ISTV2 = CAST(@DIA_ISTV AS VARCHAR(2)) from AVANCE_MODERNO_DIARIO
+
+DECLARE @Columna AS NVARCHAR(MAX)
+DECLARE @QUERY	AS NVARCHAR(MAX)
+DECLARE @TABLA AS TABLE (	CADENA VARCHAR(30),
+							COD_CATEGORIA_AFO VARCHAR(10) NULL,
+							CATEGORIA_AFO VARCHAR(100) NULL,
+							COD_FAMILIA_AFO VARCHAR(10) NULL,
+							FAMILIA_AFO VARCHAR(100) NULL,
+							CODIGO_MATERIAL VARCHAR(50) NULL,
+							DUENO_MARCA_AFO VARCHAR(50) NULL,
+							SUBNEGOCIO_AFO VARCHAR(50) NULL,
+							PLATAFORMA_AFO VARCHAR(50) NULL,
+							MAA FLOAT NULL,[2MA] FLOAT NULL,
+							MA FLOAT NULL,M FLOAT NULL
+						)
+
+
+IF OBJECT_ID('TEMPDB..#TMP_PERIODOS') IS NOT NULL DROP TABLE #TMP_PERIODOS
+SELECT A.PERIODO,B.ORDEN INTO #TMP_PERIODOS
+FROM AVANCE_MODERNO_DIARIO A
+LEFT JOIN M_PERIODOS B ON A.PERIODO=B.PERIODO
+GROUP BY A.PERIODO,B.ORDEN
+ORDER BY B.ORDEN
+
+SET @Columna=	STUFF((SELECT  ',' + QUOTENAME(c.PERIODO) 
+				 FROM #TMP_PERIODOS c
+				 ORDER BY C.ORDEN
+				 FOR XML PATH(''), TYPE
+				  ).value('.', 'NVARCHAR(MAX)') 
+				 ,1,1,'')
+
+SET @QUERY =
+'SELECT [CADENA],[COD_CATEGORIA_AFO] ,[CATEGORIA_AFO],[COD_FAMILIA_AFO],[FAMILIA_AFO], [CODIGO_MATERIAL],[DUENO_MARCA_AFO],[SUBNEGOCIO_AFO],[PLATAFORMA_AFO],' +@columna+
+'FROM (SELECT* FROM [AVANCE_SO_MODERNO_BOLIVIA].[dbo].[AVANCE_MODERNO_DIARIO] WHERE DAY(FECHA) <='+@DIA_ISTV2+') AS X
+PIVOT (
+SUM(TONELADAS) FOR PERIODO IN ('+@columna+')) AS P'
+
+INSERT INTO @TABLA exec (@query)
+
+IF OBJECT_ID('TEMPDB..#TMP03') IS NOT NULL DROP TABLE #TMP03;
+SELECT* INTO #TMP03 FROM @TABLA
+
+--12.- Nos quedamos con los campos a necesitar
+IF OBJECT_ID('TEMPDB..#TMP04') IS NOT NULL DROP TABLE #TMP04;
+SELECT CADENA,COD_CATEGORIA_AFO,CATEGORIA_AFO,COD_FAMILIA_AFO,FAMILIA_AFO,CODIGO_MATERIAL,DUENO_MARCA_AFO,SUBNEGOCIO_AFO,PLATAFORMA_AFO
+,ISNULL(SUM(ISNULL(MAA,0)),0) MAA , ISNULL(SUM(ISNULL(MA,0)),0) MA, ISNULL(SUM(ISNULL(M,0)),0) M 
+INTO #TMP04
+FROM #TMP03
+GROUP BY CADENA,CATEGORIA_AFO,FAMILIA_AFO,CODIGO_MATERIAL,COD_FAMILIA_AFO,COD_CATEGORIA_AFO,DUENO_MARCA_AFO,SUBNEGOCIO_AFO,PLATAFORMA_AFO;
+
+
+/****************************************************************************************/
+-- Asignamos SI a nuestro SO
+/****************************************************************************************/
+
+-- 13.- Insertamos nuestros clientes
+
+UPDATE BASE_FUENTE
+SET REAL_TON=0
+WHERE REAL_TON IS NULL
+
+UPDATE BASE_FUENTE
+SET REAL_BONIFICACION=0
+WHERE REAL_BONIFICACION IS NULL
+
+declare @REAL_FUENTE float
+UPDATE BASE_FUENTE
+SET REAL_FUENTE=REAL_TON+REAL_BONIFICACION
+
+DELETE from BASE_FUENTE
+WHERE CLIENTE NOT LIKE '%HIPERMAXI%'--6674
+
+UPDATE BASE_FUENTE
+SET CLIENTE='HIPERMAXI S.A.'
+WHERE CLIENTE LIKE '%HIPERMAXI%'
+
+DELETE FROM BASE_FUENTE
+WHERE DIA='#'
+
+
+--13.2.- Actualizamos a 0 las ventas después del día corte
+UPDATE BASE_FUENTE SET REAL_FUENTE = 0 WHERE DAY(DIA) > @DIA_ISTV;
+
+/***************************************************/
+-- OBS.: DEBE CUADRAR CON NUESTRO AVANCE DE VENTAS
+/***************************************************/
+
+IF OBJECT_ID('TEMPDB..#GRUPO1') IS NOT NULL DROP TABLE #GRUPO1;
+SELECT A.CLIENTE,C.PLATAFORMA,A.COD_CATEGORIA,A.CATEGORIA,A.COD_FAMILIA,A.FAMILIA,
+IIF(A.SUBNEGOCIO LIKE '%CM Propios%','Propios','SSCC') SUBNEGOCIO,A.MATERIAL_HISTORICO,SUM(A.REAL_FUENTE) REAL_FUENTE
+INTO #GRUPO1
+FROM BASE_FUENTE A
+LEFT JOIN BASE_MATERIAL_SI B ON B.COD_MATERIAL=A.MATERIAL_HISTORICO
+LEFT JOIN BASE_PLATAFORMA C ON C.COD_CATEGORIA=B.COD_CATEGORIA
+GROUP BY A.CLIENTE,A.CATEGORIA,A.FAMILIA,A.MATERIAL_HISTORICO,A.COD_FAMILIA,A.COD_CATEGORIA,C.PLATAFORMA,IIF(A.SUBNEGOCIO LIKE '%CM Propios%','Propios','SSCC')
+
+
+IF OBJECT_ID('TEMPDB..#GRUPO_TOTAL') IS NOT NULL DROP TABLE #GRUPO_TOTAL;
+SELECT B.CODIGO_CADENA,B.Grupo_precios,B.Nombre CADENA,A.PLATAFORMA,
+A.COD_CATEGORIA,A.CATEGORIA,A.COD_FAMILIA,A.FAMILIA,A.SUBNEGOCIO,A.MATERIAL_HISTORICO,A.REAL_FUENTE
+INTO #GRUPO_TOTAL
+FROM #GRUPO1 A
+LEFT JOIN BASE_GRUPO_PRECIOS_MODERNO B ON A.CLIENTE=B.CADENA;
+
+--19.- Cruzamos para obtener el codigo de cadena y grupo de precios
+--SELECT * FROM #TMP05
+IF OBJECT_ID('TEMPDB..#TMP05') IS NOT NULL DROP TABLE #TMP05;
+SELECT A.*,C.CODIGO_CADENA,C.Grupo_precios 
+INTO #TMP05
+FROM #TMP04 A
+LEFT JOIN BASE_GRUPO_PRECIOS_MODERNO C
+ON A.CADENA=C.CADENA;
+
+/*******************************CÁLCULO DE SPLIT*****************************************************/
+
+--Convertimos en nuestra tabla final de Split
+IF OBJECT_ID('AVANCE_MODERNO_SPLIT') IS NOT NULL DROP TABLE AVANCE_MODERNO_SPLIT
+SELECT* INTO AVANCE_MODERNO_SPLIT FROM #GRUPO_TOTAL;
+
+/*****************************************************************************************/
+--20.- Cruzamos para obtener el SI de nuestro SO mendiante la llave, cadena, categoria,familia, SKU
+
+IF OBJECT_ID('TEMPDB..#TMP06') IS NOT NULL DROP TABLE #TMP06;
+SELECT A.*,ISNULL(REAL_FUENTE,0) REAL_FUENTE 
+INTO #TMP06
+FROM #TMP05 A
+LEFT JOIN AVANCE_MODERNO_SPLIT B
+ON CONCAT(A.CODIGO_CADENA,A.COD_CATEGORIA_AFO,A.COD_FAMILIA_AFO,A.CODIGO_MATERIAL) = CONCAT(B.CODIGO_CADENA,B.COD_CATEGORIA,B.COD_FAMILIA,B.MATERIAL_HISTORICO);
+
+--21.- Encontramos SKU de nuestro SI que NO tienen SO
+--SELECT * FROM #TMP07 WHERE DUENO_MARCA IS NULL
+IF OBJECT_ID('TEMPDB..#TMP07') IS NOT NULL DROP TABLE #TMP07;
+SELECT A.*,ISNULL(B.DUENO_MARCA,'Sin Asignar') DUENO_MARCA --VER SI HAY UN MAESTRO CON DUEÑO DE MARCA!!!!
+INTO #TMP07
+FROM (
+SELECT * FROM AVANCE_MODERNO_SPLIT B
+WHERE CONCAT(B.CODIGO_CADENA,B.COD_CATEGORIA,B.COD_FAMILIA,B.MATERIAL_HISTORICO) NOT IN (SELECT DISTINCT 
+CONCAT(A.CODIGO_CADENA,A.COD_CATEGORIA_AFO,A.COD_FAMILIA_AFO,A.CODIGO_MATERIAL) LLAVE FROM #TMP06 A)
+)A
+LEFT JOIN BASE_MATERIAL B
+ON A.MATERIAL_HISTORICO = B.COD_MATERIAL;
+
+
+/****************************PROYECCIÓN LINEAL********************************************/
+-- 22.- Cálculo de Proyecciones y CALCULO DEL OBJETIVO DIARIO
+
+IF OBJECT_ID('AVANCE_MODERNO_PLAN') IS NOT NULL DROP TABLE AVANCE_MODERNO_PLAN;
+SELECT *, M*@DIAS_UTILES/(@DIA_ISTV) Proy 
+INTO AVANCE_MODERNO_PLAN
+FROM
+(
+SELECT * FROM #TMP06--SKU's que cruzan SI y SO
+UNION
+SELECT CADENA,COD_CATEGORIA,CATEGORIA,COD_FAMILIA,FAMILIA,MATERIAL_HISTORICO
+,DUENO_MARCA,SUBNEGOCIO,PLATAFORMA,0,0,0,CODIGO_CADENA,Grupo_precios,REAL_FUENTE
+FROM #TMP07--SKU's que NO cruzan SI y SO
+)A;
+
+GO
+
+/************************* AGREGO Descripción Material*************************************/
+
+alter table AVANCE_MODERNO_DIARIO add  Descripcion_Material varchar (100) 
+GO
+
+update AVANCE_MODERNO_DIARIO
+set Descripcion_Material = CONCAT(CODIGO_MATERIAL,' ',MATERIAL_AFO)
+from AVANCE_MODERNO_DIARIO
+GO
+
+------------------------------------------------------------------------------------------
+DROP TABLE #GRUPO_TOTAL,#GRUPO1,#TMP01,#TMP02,#TMP03,#TMP04,#TMP05,#TMP06,#TMP07--,#BASE_MATERIAL_1,#FAM_SN_DM
+GO
